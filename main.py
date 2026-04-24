@@ -125,6 +125,13 @@ Examples:
         default=10,
         help="Maximum number of candidate videos to compare (default: 10)",
     )
+    parser.add_argument(
+        "--candidate-frames",
+        "-m",
+        type=int,
+        default=0,
+        help="Number of frames to extract for candidates in addition to thumbnail (default: 0)",
+    )
 
     args = parser.parse_args()
 
@@ -138,18 +145,23 @@ Examples:
     if args.candidates < 1 or args.candidates > 50:
         print("Error: --candidates must be between 1 and 50.")
         sys.exit(1)
+    if args.candidate_frames < 0 or args.candidate_frames > 10:
+        print("Error: --candidate-frames must be between 0 and 10.")
+        sys.exit(1)
 
     print(f"  Configuration:")
-    print(f"    URL        : {args.url}")
-    print(f"    Frames     : {args.frames}")
-    print(f"    Threshold  : {args.threshold}")
-    print(f"    Candidates : {args.candidates}")
+    print(f"    URL              : {args.url}")
+    print(f"    Input Frames     : {args.frames}")
+    print(f"    Candidate Frames : {args.candidate_frames}")
+    print(f"    Threshold        : {args.threshold}")
+    print(f"    Candidates       : {args.candidates}")
 
     # Run analysis
     start_time = time.time()
 
     analyzer = Analyzer(
         n_frames=args.frames,
+        m_frames=args.candidate_frames,
         threshold=args.threshold,
         max_candidates=args.candidates,
     )

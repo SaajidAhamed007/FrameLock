@@ -21,8 +21,10 @@ Usage:
     all_embeddings = vector.get_vectors()     # list of numpy arrays
 """
 
+import io
 import time
 import threading
+import requests
 import concurrent.futures
 import numpy as np
 from PIL import Image
@@ -81,6 +83,10 @@ class VideoFrameIterator:
     @property
     def stream_url(self) -> str:
         return self._video_info["stream_url"]
+
+    @property
+    def thumbnail_url(self) -> str:
+        return self._video_info.get("thumbnail", "")
 
     @property
     def timestamps(self) -> list:
@@ -336,12 +342,26 @@ def vectorise(url: str, n_frames: int = 3) -> VectorEmbedding:
     )
 
     # Step 3: Pipelined loop — fetch and embed overlap
+    # First, embed the thumbnail as an additional frame
+    if video.thumbnail_url:
+        try:
+            response = requests.get(video.thumbnail_url, timeout=10)
+            response.raise_for_status()
+            thumb_img = Image.open(io.BytesIO(response.content)).convert("RGB")
+            vector.add(thumb_img)
+            print(f"  -> Submitted thumbnail (embedded: {vector.frame_count})")
+        except Exception as e:
+            print(f"  ⚠️  Could not fetch/embed thumbnail: {e}")
+
+    # Now loop through the extracted video frames
+    total_to_submit = video.total_frames + (1 if video.thumbnail_url else 0)
+    
     frame = video.next_frame()
     while frame is not None:
         vector.add(frame)  # Non-blocking: embedding runs in background
         submitted = vector.submitted_count
         done = vector.frame_count
-        print(f"  -> Submitted frame {submitted}/{video.total_frames} "
+        print(f"  -> Submitted frame {submitted}/{total_to_submit} "
               f"(embedded: {done})")
         frame = video.next_frame()  # Fetch next while previous embeds
 

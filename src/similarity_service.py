@@ -32,45 +32,47 @@ class SimilarityService:
         return float(dot / (norm_a * norm_b))
 
     @staticmethod
-    def compute_max_similarity(frame_embeddings: list, thumbnail_embedding: np.ndarray) -> float:
+    def compute_max_similarity(frame_embeddings: list, candidate_embeddings: list) -> float:
         """
-        Compute the maximum cosine similarity between a candidate's thumbnail
-        and all extracted frames.
+        Compute the maximum cosine similarity between any input frame
+        and any candidate frame.
 
         Args:
-            frame_embeddings: List of embedding vectors from input video frames.
-            thumbnail_embedding: Embedding vector of the candidate's thumbnail.
+            frame_embeddings: List of embedding vectors from input video.
+            candidate_embeddings: List of embedding vectors from candidate video.
 
         Returns:
-            Maximum cosine similarity score across all frames.
+            Maximum cosine similarity score.
         """
-        if not frame_embeddings:
+        if not frame_embeddings or not candidate_embeddings:
             return 0.0
 
         similarities = [
-            SimilarityService.cosine_similarity(frame_emb, thumbnail_embedding)
-            for frame_emb in frame_embeddings
+            SimilarityService.cosine_similarity(f_emb, c_emb)
+            for f_emb in frame_embeddings
+            for c_emb in candidate_embeddings
         ]
         return max(similarities)
 
     @staticmethod
-    def compute_avg_similarity(frame_embeddings: list, thumbnail_embedding: np.ndarray) -> float:
+    def compute_avg_similarity(frame_embeddings: list, candidate_embeddings: list) -> float:
         """
-        Compute the average cosine similarity between a candidate's thumbnail
-        and all extracted frames.
+        Compute the average cosine similarity between all input frames
+        and all candidate frames.
 
         Args:
-            frame_embeddings: List of embedding vectors from input video frames.
-            thumbnail_embedding: Embedding vector of the candidate's thumbnail.
+            frame_embeddings: List of embedding vectors from input video.
+            candidate_embeddings: List of embedding vectors from candidate video.
 
         Returns:
-            Average cosine similarity score across all frames.
+            Average cosine similarity score.
         """
-        if not frame_embeddings:
+        if not frame_embeddings or not candidate_embeddings:
             return 0.0
 
         similarities = [
-            SimilarityService.cosine_similarity(frame_emb, thumbnail_embedding)
-            for frame_emb in frame_embeddings
+            SimilarityService.cosine_similarity(f_emb, c_emb)
+            for f_emb in frame_embeddings
+            for c_emb in candidate_embeddings
         ]
         return sum(similarities) / len(similarities)

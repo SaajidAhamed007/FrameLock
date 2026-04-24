@@ -118,6 +118,7 @@ class VideoProcessor:
                     "duration": info.get("duration", 0),
                     "stream_url": stream_url,
                     "url": url,
+                    "thumbnail": info.get("thumbnail", ""),
                 }
         except Exception as e:
             raise RuntimeError(f"Failed to get video info: {e}")
@@ -137,6 +138,9 @@ class VideoProcessor:
         Returns:
             List of timestamps (in seconds) to extract frames at.
         """
+        if n_frames <= 0:
+            return []
+
         # Define effective region (skip 5% at start and end)
         effective_start = duration * 0.05
         effective_end = duration * 0.95
