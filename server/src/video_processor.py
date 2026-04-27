@@ -196,6 +196,7 @@ class VideoProcessor:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
+                stdin=subprocess.DEVNULL,
                 timeout=30,
             )
 

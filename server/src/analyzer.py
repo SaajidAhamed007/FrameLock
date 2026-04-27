@@ -54,7 +54,7 @@ class Analyzer:
         }
 
         # === Step 1: Vectorise the input video (Async) ===
-        print(f"\n[1/4] 🧠 Vectorising input video ({self.n_frames} frames)...")
+        print(f"\n[1/4] Vectorising input video ({self.n_frames} frames)...")
         try:
             # This returns IMMEDIATELY after submitting frames to background
             input_vector = vectorise(youtube_url, n_frames=self.n_frames)
@@ -64,23 +64,23 @@ class Analyzer:
                 "url": youtube_url,
             }
         except RuntimeError as e:
-            print(f"  ✗ {e}")
+            print(f"  {e}")
             return results
 
         # === Step 2: Search YouTube for candidates ===
         # Note: This runs while the background threads are still embedding!
-        print(f"\n[2/4] 🔍 Searching YouTube for similar videos...")
+        print(f"\n[2/4] Searching YouTube for similar videos...")
         candidates = self.search_service.search_videos(input_vector.title)
         if not candidates:
-            print("  ✗ No candidates found.")
+            print("  No candidates found.")
             return results
 
         # Filter out the input video itself
         candidates = [c for c in candidates if c["id"] != input_vector.video_id]
-        print(f"  ✓ {len(candidates)} candidates after filtering self")
+        print(f"  Found {len(candidates)} candidates after filtering self")
 
         # === Step 3: Compare with candidates ===
-        print(f"\n[3/4] 📊 Comparing with {len(candidates)} candidates...")
+        print(f"\n[3/4] Comparing with {len(candidates)} candidates...")
         
         # This will BLOCK if any background embeddings are still pending
         frame_embeddings = input_vector.get_vectors()
@@ -113,15 +113,15 @@ class Analyzer:
                 if is_match:
                     results["matches"].append(result_entry)
 
-                status = "🔴 MATCH" if is_match else "⚪"
-                print(f"  [{i+1}/{len(candidates)}] {status} {max_sim:.4f} — {candidate['title'][:60]}")
+                status = "MATCH" if is_match else "NO MATCH"
+                print(f"  [{i+1}/{len(candidates)}] {status} {max_sim:.4f} - {candidate['title'][:60]}")
 
             except RuntimeError as e:
-                print(f"  [{i+1}/{len(candidates)}] ⚠️  Skipped (thumbnail error): {candidate['title'][:40]}")
+                print(f"  [{i+1}/{len(candidates)}] Skipped (thumbnail error): {candidate['title'][:40]}")
                 continue
 
         # === Step 4: Sort & Summarize ===
-        print(f"\n[4/4] 📋 Finalizing results...")
+        print(f"\n[4/4] Finalizing results...")
         results["candidates"].sort(key=lambda x: x["max_similarity"], reverse=True)
         results["matches"].sort(key=lambda x: x["max_similarity"], reverse=True)
 

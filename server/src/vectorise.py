@@ -176,10 +176,7 @@ class VectorEmbedding:
         self.duration = duration
         self._embeddings = []
         self._lock = threading.Lock()
-        # Single worker: CLIP inference is CPU-bound, parallelising it
-        # causes cache thrashing and is SLOWER than sequential.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self._futures = []
+        self._ensure_embedding_service()
 
     @classmethod
     def _ensure_embedding_service(cls):
@@ -192,40 +189,22 @@ class VectorEmbedding:
 
     def _embed_and_store(self, frame: Image.Image, index: int):
         """
-        Internal method that runs in the background thread.
-        Embeds a single frame and appends the result to the list.
-
-        Args:
-            frame: PIL Image to embed.
-            index: Frame number (for logging).
+        Embeds a single frame and appends the result to the list synchronously.
         """
-        self._ensure_embedding_service()
         embedding = self._embedding_service.get_image_embedding(frame)
         with self._lock:
             self._embeddings.append(embedding)
 
     def add(self, frame: Image.Image):
         """
-        Submit a frame for embedding (NON-BLOCKING).
-
-        The actual CLIP inference runs in a background thread. This method
-        returns immediately, allowing the caller to fetch the next frame.
-
-        Args:
-            frame: PIL Image to embed.
+        Submit a frame for embedding (SYNCHRONOUS to avoid thread deadlocks).
         """
-        index = len(self._futures) + 1
-        future = self._executor.submit(self._embed_and_store, frame, index)
-        self._futures.append(future)
+        index = len(self._embeddings) + 1
+        self._embed_and_store(frame, index)
 
     def _wait_for_pending(self):
-        """Block until all submitted add() calls have completed."""
-        if self._futures:
-            concurrent.futures.wait(self._futures)
-            # Check for exceptions in any future
-            for f in self._futures:
-                if f.exception() is not None:
-                    print(f"  ⚠️  Embedding error: {f.exception()}")
+        """No-op since it is synchronous."""
+        pass
 
     def get_vector(self) -> np.ndarray:
         """
@@ -273,29 +252,22 @@ class VectorEmbedding:
     @property
     def pending_count(self) -> int:
         """Number of add() calls still being processed."""
-        done = sum(1 for f in self._futures if f.done())
-        return len(self._futures) - done
+        return 0
 
     @property
     def submitted_count(self) -> int:
         """Total number of add() calls submitted (done + pending)."""
-        return len(self._futures)
+        return self.frame_count
 
     @property
     def is_empty(self) -> bool:
         return len(self._embeddings) == 0
 
     def close(self):
-        """Wait for all pending work and shut down the executor."""
-        self._wait_for_pending()
-        self._executor.shutdown(wait=True)
+        """No-op since it is synchronous."""
+        pass
 
-    def __del__(self):
-        """Cleanup on garbage collection."""
-        try:
-            self._executor.shutdown(wait=False)
-        except Exception:
-            pass
+
 
 
 # ---------------------------------------------------------------------------
