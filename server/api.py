@@ -1,6 +1,10 @@
 import sys
 import os
 import io
+import json
+
+from dotenv import load_dotenv
+load_dotenv()  # Load .env at server startup
 
 # Fix Windows console encoding for Unicode output
 if sys.stdout.encoding != 'utf-8':
@@ -238,3 +242,114 @@ def debug_threads():
         stacks.append("".join(traceback.format_stack(frame)))
         stacks.append("-" * 40)
     return {"threads": "\n".join(stacks)}
+
+@app.get("/api/reports/{job_id}")
+def generate_ai_report(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    job = jobs[job_id]
+    if job["status"] != "completed" or "results" not in job:
+        raise HTTPException(status_code=400, detail="Job is not completed yet")
+        
+    results = job["results"]
+    
+    import os
+    import json
+    from google import genai
+    from google.genai import types
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set on the server")
+        
+    client = genai.Client(api_key=api_key)
+    
+    # Prepare the data context for the prompt
+    input_video = results.get("input_video", {})
+    detections = results.get("detections", [])
+    prop_nodes = results.get("propagation_nodes", [])
+    risk = results.get("risk_summary", {})
+    metrics = results.get("metrics", [])
+    
+    reach = next((m["value"] for m in metrics if m["label"] == "Estimated Audience Reach"), "0")
+    rev_loss = next((m["value"] for m in metrics if m["label"] == "Potential Revenue Loss"), "$0")
+    
+    prompt = f"""You are an AI analyst generating a professional media protection report.
+
+Your task is to analyze detected unauthorized media usage and produce a structured, high-quality intelligence report.
+
+-----------------------------------
+INPUT DATA
+-----------------------------------
+
+Original Video:
+- Title: {input_video.get('title', 'Unknown')}
+- Source: {input_video.get('platform', 'youtube')}
+- Duration: {input_video.get('duration', '00:00')}
+
+Detection Data (top 10):
+{json.dumps([{ 'title': d['title'], 'channel': d['channel'], 'similarity': d['similarity'], 'views': d['views'], 'risk': d['risk'] } for d in sorted(detections, key=lambda x: x['views'], reverse=True)[:10]], indent=2)}
+
+Metrics:
+- Total Detections: {len(detections)}
+- High Risk: {risk.get('high', 0)}
+- Medium Risk: {risk.get('medium', 0)}
+- Low Risk: {risk.get('low', 0)}
+- Total Reach: {reach}
+- Estimated Revenue Loss: {rev_loss}
+
+-----------------------------------
+OUTPUT REQUIREMENTS
+-----------------------------------
+
+Generate a structured report with the following sections:
+
+1. EXECUTIVE SUMMARY: High-level overview (3-4 sentences), key findings, overall risk.
+2. KEY THREATS: Top 3 most critical detections. Include title, similarity %, views, why it is high risk.
+3. PROPAGATION ANALYSIS: How content spread, clusters/patterns, viral nodes.
+4. IMPACT ASSESSMENT: Estimated audience reach, financial implications, brand risk.
+5. ANOMALY DETECTION: Identify unusual patterns (sudden spikes, repeated channels, coordinated uploads).
+6. RECOMMENDED ACTIONS: Prioritized actions (takedown targets, monitoring suggestions).
+7. CONFIDENCE ANALYSIS: Why matches are reliable (visual similarity, etc).
+
+-----------------------------------
+STYLE REQUIREMENTS
+-----------------------------------
+- Professional and concise
+- Avoid generic statements
+- Use specific data points
+- No fluff
+- Tone: analytical, decision-oriented
+
+-----------------------------------
+OUTPUT FORMAT
+-----------------------------------
+Return strictly valid JSON exactly matching this structure, with no markdown code blocks:
+{{
+  "executive_summary": "...",
+  "key_threats": [{{"title": "...", "similarity": "...", "views": "...", "risk_reason": "..."}}],
+  "propagation_analysis": "...",
+  "impact_assessment": "...",
+  "anomalies": "...",
+  "recommendations": ["..."],
+  "confidence_analysis": "..."
+}}
+"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        print(f"Error generating AI report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

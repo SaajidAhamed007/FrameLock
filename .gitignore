@@ -12,7 +12,8 @@ build/
 venv/
 env/
 .venv/
-
+.env
+server/.env
 # IDE
 .vscode/
 .idea/
