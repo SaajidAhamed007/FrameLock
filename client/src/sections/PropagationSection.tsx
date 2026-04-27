@@ -3,12 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { PropagationNode, Detection } from '../types'
 import { getRiskColor, formatViews } from '../lib/utils'
 import { Calendar, Filter, Activity, Users, AlertTriangle, Share2, X } from 'lucide-react'
+import { IntelligenceRadar } from '../components/IntelligenceRadar'
+import type { RadarNodeType } from '../components/IntelligenceRadar'
 
 interface PropagationSectionProps {
   nodes: PropagationNode[]
   detections: Detection[]
   selectedNodeId: string | null
   onSelectNode: (id: string) => void
+  onRadarNodeClick: (type: RadarNodeType) => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,7 +235,7 @@ function NetworkGraph({
   )
 }
 
-export function PropagationSection({ nodes, detections, selectedNodeId, onSelectNode }: PropagationSectionProps) {
+export function PropagationSection({ nodes, detections, selectedNodeId, onSelectNode, onRadarNodeClick }: PropagationSectionProps) {
   const selectedNode = nodes.find(n => n.id === selectedNodeId)
   const selectedDetection = detections.find(d => d.id === selectedNodeId)
 
@@ -406,19 +409,16 @@ export function PropagationSection({ nodes, detections, selectedNodeId, onSelect
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-64 shrink-0 flex items-center justify-center rounded-2xl border border-dashed border-white/8"
-              style={{ background: 'rgba(255,255,255,0.01)' }}
+              className="w-72 shrink-0 flex flex-col items-center justify-center rounded-2xl border border-white/8 bg-[#111114]"
             >
-              <div className="text-center space-y-3">
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-                  className="w-12 h-12 mx-auto rounded-2xl flex items-center justify-center bg-[#6366F1]/10 border border-[#6366F1]/15"
-                >
-                  <Share2 className="w-5 h-5 text-[#52525B]" />
-                </motion.div>
-                <p className="text-xs text-[#52525B]">Click a node<br />to inspect it</p>
-              </div>
+              <IntelligenceRadar
+                highRiskCount={highRiskCount}
+                mediumRiskCount={nodes.filter(n => n.risk === 'medium').length}
+                onNodeClick={onRadarNodeClick}
+              />
+              <p className="text-xs text-[#71717A] mt-6 text-center px-6">
+                Interact with the radar or select a node in the graph.
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
