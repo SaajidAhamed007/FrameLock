@@ -62,6 +62,8 @@ class Analyzer:
                 "title": input_vector.title,
                 "id": input_vector.video_id,
                 "url": youtube_url,
+                "duration": input_vector.duration,
+                "thumbnail_url": input_vector.thumbnail,
             }
         except RuntimeError as e:
             print(f"  {e}")

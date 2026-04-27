@@ -1,7 +1,8 @@
 import { Card } from '../components/Card'
 import { DetectionItem } from '../components/DetectionItem'
-import { PropagationGraph } from '../components/PropagationGraph'
+import { IntelligenceRadar } from '../components/IntelligenceRadar'
 import { MetricCard } from '../components/MetricCard'
+import type { RadarNodeType } from '../components/IntelligenceRadar'
 import type { Detection, PropagationNode, MetricCard as MetricCardType, RiskSummary } from '../types'
 import { AlertTriangle, Globe } from 'lucide-react'
 
@@ -12,6 +13,7 @@ interface MainGridSectionProps {
   riskSummary: RiskSummary
   selectedDetection: Detection | null
   onSelectDetection: (d: Detection) => void
+  onRadarNodeClick: (type: RadarNodeType) => void
 }
 
 function RiskDistributionBar({ summary }: { summary: RiskSummary }) {
@@ -59,6 +61,7 @@ export function MainGridSection({
   riskSummary,
   selectedDetection,
   onSelectDetection,
+  onRadarNodeClick,
 }: MainGridSectionProps) {
   return (
     <section aria-labelledby="main-grid-title">
@@ -113,39 +116,13 @@ export function MainGridSection({
           </div>
         </div>
 
-        {/* CENTER: Propagation Map */}
-        <Card className="p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#52525B' }}>
-              Propagation Map
-            </p>
-            <div className="flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5" style={{ color: '#2DD4BF' }} />
-              <span className="text-xs font-semibold" style={{ color: '#2DD4BF' }}>
-                {propagationNodes.length - 1} copies detected
-              </span>
-            </div>
-          </div>
-          <div className="flex-1">
-            <PropagationGraph
-              nodes={propagationNodes}
-              selectedId={selectedDetection?.id}
-            />
-          </div>
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-4 pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            {[
-              { label: 'High', color: '#EF4444' },
-              { label: 'Medium', color: '#F59E0B' },
-              { label: 'Low', color: '#10B981' },
-              { label: 'Original', color: '#6366F1' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-[11px]" style={{ color: '#71717A' }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
+        {/* CENTER: Intelligence Radar */}
+        <Card className="p-4 flex flex-col items-center justify-center">
+          <IntelligenceRadar
+            highRiskCount={riskSummary.high}
+            mediumRiskCount={riskSummary.medium}
+            onNodeClick={onRadarNodeClick}
+          />
         </Card>
 
         {/* RIGHT: Impact Summary */}

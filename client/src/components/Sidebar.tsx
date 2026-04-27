@@ -13,6 +13,8 @@ import {
   User,
 } from 'lucide-react'
 
+import { Logo } from './Logo'
+
 interface SidebarProps {
   activePage: string
   onNavigate: (page: string) => void
@@ -46,12 +48,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
     >
       {/* Logo */}
       <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #6366F1, #2DD4BF)' }}
-        >
-          <Eye className="w-4 h-4 text-white" />
-        </div>
+        <Logo size={32} />
         <div>
           <p className="font-bold text-sm" style={{ color: '#E4E4E7' }}>VisionGuard</p>
           <p className="text-[10px]" style={{ color: '#71717A' }}>AI Intelligence</p>
