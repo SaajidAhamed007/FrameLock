@@ -1,18 +1,39 @@
+import { useState } from 'react'
 import { Card } from '../components/Card'
 import { MetricCard } from '../components/MetricCard'
 import type { Detection, MetricCard as MetricCardType, RiskSummary } from '../types'
 import { formatViews, getRiskColor } from '../lib/utils'
-import { Download, FileText, Calendar, Activity, BarChart2 } from 'lucide-react'
+import { Download, FileText, Calendar, Activity, BarChart2, Bot, Loader2, AlertCircle } from 'lucide-react'
 
 interface ReportsSectionProps {
+  jobId: string
   detections: Detection[]
   metrics: MetricCardType[]
   riskSummary: RiskSummary
 }
 
-export function ReportsSection({ detections, metrics, riskSummary }: ReportsSectionProps) {
+export function ReportsSection({ jobId, detections, metrics, riskSummary }: ReportsSectionProps) {
+  const [aiReport, setAiReport] = useState<any>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const total = riskSummary.high + riskSummary.medium + riskSummary.low
   const sortedDetections = [...detections].sort((a, b) => b.views - a.views)
+
+  const handleGenerateReport = async () => {
+    setIsGenerating(true)
+    setError(null)
+    try {
+      const res = await fetch(`http://localhost:8000/api/reports/${jobId}`)
+      if (!res.ok) throw new Error('Failed to generate AI report')
+      const data = await res.json()
+      setAiReport(data)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   return (
     <section className="h-full flex flex-col space-y-8 overflow-y-auto pr-2 pb-8">
@@ -29,12 +50,83 @@ export function ReportsSection({ detections, metrics, riskSummary }: ReportsSect
             <Download className="w-4 h-4 text-[#A1A1AA]" />
             CSV
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-sm font-medium text-white transition-colors shadow-lg shadow-[#6366F1]/20">
-            <FileText className="w-4 h-4" />
-            Export PDF Report
+          <button 
+            onClick={handleGenerateReport}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors shadow-lg shadow-[#6366F1]/20"
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+            Generate AI Intelligence Report
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500" />
+          <p className="text-sm text-red-500">{error}</p>
+        </div>
+      )}
+
+      {/* AI Report Section */}
+      {aiReport && (
+        <div className="bg-[#18181B] border border-[#6366F1]/30 rounded-2xl overflow-hidden shadow-2xl shadow-[#6366F1]/5">
+          <div className="bg-[#6366F1]/10 px-6 py-4 border-b border-[#6366F1]/20 flex items-center gap-3">
+            <Bot className="w-5 h-5 text-[#6366F1]" />
+            <h2 className="text-lg font-bold text-[#E4E4E7]">AI Media Protection Report</h2>
+          </div>
+          
+          <div className="p-6 space-y-8">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[#6366F1] mb-2">1. Executive Summary</h3>
+              <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.executive_summary}</p>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[#EF4444] mb-3">2. Key Threats</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {aiReport.key_threats.map((t: any, i: number) => (
+                  <div key={i} className="bg-[#09090B] p-4 rounded-xl border border-white/5">
+                    <p className="text-sm font-bold text-[#E4E4E7] mb-1 line-clamp-1">{t.title}</p>
+                    <p className="text-xs text-[#A1A1AA] mb-3">{t.views} views • {t.similarity} match</p>
+                    <p className="text-xs text-[#EF4444]/80">{t.risk_reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#2DD4BF] mb-2">3. Propagation Analysis</h3>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.propagation_analysis}</p>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#F59E0B] mb-2">4. Impact Assessment</h3>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.impact_assessment}</p>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#E4E4E7] mb-2">5. Anomaly Detection</h3>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.anomalies}</p>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#10B981] mb-2">6. Confidence Analysis</h3>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.confidence_analysis}</p>
+              </div>
+            </div>
+
+            <div className="bg-[#6366F1]/5 p-5 rounded-xl border border-[#6366F1]/10">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[#6366F1] mb-3">7. Recommended Actions</h3>
+              <ul className="space-y-2">
+                {aiReport.recommendations.map((r: string, i: number) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[#A1A1AA]">
+                    <span className="text-[#6366F1] mt-0.5">•</span> {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Section 1: Summary Cards */}
       <div>

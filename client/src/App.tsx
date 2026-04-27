@@ -105,6 +105,7 @@ export default function App() {
 
         {activePage === 'reports' && (
           <ReportsSection
+            jobId={jobId!}
             detections={results.detections}
             metrics={results.metrics}
             riskSummary={results.risk_summary}
