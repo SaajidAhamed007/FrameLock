@@ -1,7 +1,7 @@
 import os
 
 def get_embedding_service():
-    backend = os.getenv("EMBEDDING_BACKEND", "gemini").lower()
+    backend = os.getenv("EMBEDDING_BACKEND", "local").lower()
     if backend == "gemini":
         from .gemini_embedding_service import GeminiEmbeddingService
         return GeminiEmbeddingService()

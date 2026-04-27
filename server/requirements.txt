@@ -5,3 +5,7 @@ requests
 numpy
 torch
 transformers
+fastapi
+uvicorn
+pydantic
+python-multipart
