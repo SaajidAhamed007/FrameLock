@@ -15,6 +15,8 @@ from transformers import CLIPProcessor, CLIPModel
 class EmbeddingService:
     """Generates image embeddings using CLIP."""
 
+    EMBEDDING_DIM = 512
+
     def __init__(self, model_name: str = "openai/clip-vit-base-patch32"):
         """
         Initialize EmbeddingService with the CLIP model.

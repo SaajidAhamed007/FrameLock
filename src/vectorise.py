@@ -30,7 +30,6 @@ import numpy as np
 from PIL import Image
 
 from .video_processor import VideoProcessor
-from .embedding_service import EmbeddingService
 
 
 # ---------------------------------------------------------------------------
@@ -184,12 +183,12 @@ class VectorEmbedding:
 
     @classmethod
     def _ensure_embedding_service(cls):
-        """Thread-safe lazy-load of the CLIP model."""
+        """Thread-safe lazy-load of the embedding service (CLIP or Gemini)."""
         if cls._embedding_service is None:
             with cls._service_lock:
-                # Double-checked locking
                 if cls._embedding_service is None:
-                    cls._embedding_service = EmbeddingService()
+                    from .embedding_factory import get_embedding_service
+                    cls._embedding_service = get_embedding_service()
 
     def _embed_and_store(self, frame: Image.Image, index: int):
         """
@@ -242,7 +241,8 @@ class VectorEmbedding:
 
         with self._lock:
             if not self._embeddings:
-                return np.zeros(512, dtype=np.float32)
+                dim = self._embedding_service.EMBEDDING_DIM if self._embedding_service else 1408
+                return np.zeros(dim, dtype=np.float32)
             combined = np.mean(self._embeddings, axis=0)
 
         # Re-normalize after averaging
