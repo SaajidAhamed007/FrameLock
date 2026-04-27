@@ -7,6 +7,7 @@ export function NewScanSection({ onJobStarted }: { onJobStarted: (id: string) =>
   const [url, setUrl] = useState('')
   const [frames, setFrames] = useState(3)
   const [threshold, setThreshold] = useState(0.85)
+  const [enableFrameByFrame, setEnableFrameByFrame] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,6 +80,29 @@ export function NewScanSection({ onJobStarted }: { onJobStarted: (id: string) =>
                 disabled={isSubmitting}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enableFrameByFrame}
+                onChange={(e) => setEnableFrameByFrame(e.target.checked)}
+                className="w-4 h-4 rounded"
+                disabled={isSubmitting}
+                style={{
+                  accentColor: '#6366F1',
+                }}
+              />
+              <span className="text-sm" style={{ color: '#A1A1AA' }}>
+                Enable Frame-by-Frame Search (Candidate Key Analysis)
+              </span>
+            </label>
+            {enableFrameByFrame && (
+              <p className="text-xs mt-2" style={{ color: '#52525B' }}>
+                ✓ This will perform detailed frame-by-frame comparison for more precise detection
+              </p>
+            )}
           </div>
 
           {error && (

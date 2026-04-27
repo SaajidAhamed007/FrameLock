@@ -83,7 +83,7 @@ class VideoProcessor:
 
         Returns:
             dict with keys:
-                'title', 'id', 'duration' (seconds), 'stream_url', 'url'
+                'title', 'id', 'duration' (seconds), 'stream_url', 'url', 'thumbnail', 'uploader'
 
         Raises:
             RuntimeError: If metadata extraction fails.
@@ -119,6 +119,7 @@ class VideoProcessor:
                     "stream_url": stream_url,
                     "url": url,
                     "thumbnail": info.get("thumbnail", ""),
+                    "uploader": info.get("uploader", "Unknown Channel"),
                 }
         except Exception as e:
             raise RuntimeError(f"Failed to get video info: {e}")

@@ -1,15 +1,5 @@
 import sys
 import os
-import io
-import json
-
-from dotenv import load_dotenv
-load_dotenv()  # Load .env at server startup
-
-# Fix Windows console encoding for Unicode output
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,145 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
 import time
+import datetime
 from typing import Dict, Any, List
 
 from src.analyzer import Analyzer
-from google import genai
-from google.genai import types
-import tenacity
-
-# Initialize Gemini Client at top level
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    print("WARNING: GEMINI_API_KEY is not set. AI reporting will be unavailable.")
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
-
-def generate_report_for_job(job_id: str, results: Dict[str, Any]):
-    if not gemini_client:
-        print(f"Skipping report for {job_id}: No API Key")
-        jobs[job_id]["report"] = {"error": "Gemini API Key not configured"}
-        return
-
-    # Prepare the data context for the prompt
-    input_video = results.get("input_video", {})
-    detections = results.get("detections", [])
-    risk = results.get("risk_summary", {})
-    metrics = results.get("metrics", [])
-    
-    reach = next((m["value"] for m in metrics if m["label"] == "Estimated Audience Reach"), "0")
-    rev_loss = next((m["value"] for m in metrics if m["label"] == "Potential Revenue Loss"), "$0")
-    
-    # Limit to top 5 detections for stability
-    top_detections = sorted(detections, key=lambda x: x.get('views', 0), reverse=True)[:5]
-    
-    prompt = f"""You are an AI analyst generating a professional media protection report.
-
-Your task is to analyze detected unauthorized media usage and produce a structured, high-quality intelligence report.
-
------------------------------------
-INPUT DATA
------------------------------------
-
-Original Video:
-- Title: {input_video.get('title', 'Unknown')}
-- Source: {input_video.get('platform', 'youtube')}
-- Duration: {input_video.get('duration', '00:00')}
-
-Detection Data (top 5):
-{json.dumps([{ 'title': d['title'], 'channel': d['channel'], 'similarity': d['similarity'], 'views': d['views'], 'risk': d['risk'] } for d in top_detections], indent=2)}
-
-Metrics:
-- Total Detections: {len(detections)}
-- High Risk: {risk.get('high', 0)}
-- Medium Risk: {risk.get('medium', 0)}
-- Low Risk: {risk.get('low', 0)}
-- Total Reach: {reach}
-- Estimated Revenue Loss: {rev_loss}
-
------------------------------------
-OUTPUT REQUIREMENTS
------------------------------------
-
-Generate a structured report with the following sections:
-
-1. EXECUTIVE SUMMARY: High-level overview (3-4 sentences), key findings, overall risk.
-2. KEY THREATS: Top 3 most critical detections. Include title, similarity %, views, why it is high risk.
-3. PROPAGATION ANALYSIS: How content spread, clusters/patterns, viral nodes.
-4. IMPACT ASSESSMENT: Estimated audience reach, financial implications, brand risk.
-5. ANOMALY DETECTION: Identify unusual patterns (sudden spikes, repeated channels, coordinated uploads).
-6. RECOMMENDED ACTIONS: Prioritized actions (takedown targets, monitoring suggestions).
-7. CONFIDENCE ANALYSIS: Why matches are reliable (visual similarity, etc).
-
------------------------------------
-STYLE REQUIREMENTS
------------------------------------
-- Professional and concise
-- Avoid generic statements
-- Use specific data points
-- No fluff
-- Tone: analytical, decision-oriented
-
------------------------------------
-OUTPUT FORMAT
------------------------------------
-Return strictly valid JSON exactly matching this structure, with no markdown code blocks:
-{{
-  "executive_summary": "...",
-  "key_threats": [{{"title": "...", "similarity": "...", "views": "...", "risk_reason": "..."}}],
-  "propagation_analysis": "...",
-  "impact_assessment": "...",
-  "anomalies": "...",
-  "recommendations": ["..."],
-  "confidence_analysis": "..."
-}}
-"""
-    # Debug logs
-    print(f"[DEBUG] Generating report for job {job_id}")
-    print(f"[DEBUG] Prompt length: {len(prompt)} characters")
-    print(f"[DEBUG] Detection count passed: {len(top_detections)}")
-
-    @tenacity.retry(
-        wait=tenacity.wait_exponential(multiplier=2, min=3, max=20),
-        stop=tenacity.stop_after_attempt(3), # Reduced attempts for background task
-        retry=tenacity.retry_if_exception_type(Exception),
-        before_sleep=lambda retry_state: print(f"Retrying AI report generation for {job_id} (attempt {retry_state.attempt_number})...")
-    )
-    def call_gemini():
-        return gemini_client.models.generate_content(
-            model="gemini-1.5-flash-latest",   # ✅ FIXED
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                max_output_tokens=2048
-            )
-    )
-
-    try:
-        response = call_gemini()
-        # Safe JSON parsing
-        try:
-            cleaned_text = response.text.strip()
-            # Basic markdown block removal if present
-            if cleaned_text.startswith("```"):
-                cleaned_text = cleaned_text.split("```")[1]
-                if cleaned_text.startswith("json"):
-                    cleaned_text = cleaned_text[4:]
-            
-            jobs[job_id]["report"] = json.loads(cleaned_text)
-            print(f"[DEBUG] Report generated and parsed successfully for {job_id}")
-        except Exception as json_err:
-            print(f"[WARNING] Failed to parse AI response as JSON: {json_err}")
-            # Fallback to raw text
-            jobs[job_id]["report"] = {
-                "executive_summary": response.text,
-                "is_raw": True,
-                "error": "Failed to parse structured JSON, returning raw analysis."
-            }
-        save_jobs() # Persist the report
-    except Exception as e:
-        print(f"Error generating AI report after retries for {job_id}: {e}")
-        jobs[job_id]["report"] = {"error": f"AI Generation failed: {str(e)}"}
-
 
 app = FastAPI()
 
@@ -168,33 +23,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Persistence helpers for POC
-JOBS_FILE = "jobs_db.json"
-
-def save_jobs():
-    try:
-        with open(JOBS_FILE, "w") as f:
-            json.dump(jobs, f)
-    except Exception as e:
-        print(f"Error saving jobs: {e}")
-
-def load_jobs():
-    if os.path.exists(JOBS_FILE):
-        try:
-            with open(JOBS_FILE, "r") as f:
-                loaded = json.load(f)
-                # Cleanup: jobs that were active/pending are now interrupted
-                for jid, job in loaded.items():
-                    if job.get("status") in ["active", "pending"]:
-                        job["status"] = "failed"
-                        job["error"] = "Analysis interrupted by server restart"
-                return loaded
-        except Exception as e:
-            print(f"Error loading jobs: {e}")
-    return {}
-
-# In-memory job store (initialized from file)
-jobs: Dict[str, Dict[str, Any]] = load_jobs()
+# In-memory job store
+jobs: Dict[str, Dict[str, Any]] = {}
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -210,7 +40,7 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
             n_frames=req.frames,
             m_frames=req.candidate_frames,
             threshold=req.threshold,
-            max_candidates=10
+            max_candidates=10 # Search for 10 candidate videos
         )
         jobs[job_id]["progress"] = {"stage": "detecting", "percent": 50, "details": "Analyzing candidates..."}
         
@@ -237,9 +67,7 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
             }
         ]
         
-        import math
-        candidates_list = raw_results.get("candidates", [])
-        for i, c in enumerate(candidates_list):
+        for c in raw_results.get("candidates", []):
             sim = c["max_similarity"]
             if sim >= 0.85:
                 risk = "high"
@@ -255,7 +83,7 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
             detections.append({
                 "id": det_id,
                 "title": c["title"],
-                "channel": "YouTube Channel", # Placeholder
+                "channel": c.get("uploader", "Unknown Channel"),
                 "thumbnailUrl": c["thumbnail_url"],
                 "views": int(10000 * float(sim)),
                 "similarity": float(sim),
@@ -266,41 +94,29 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
                 "url": c["url"]
             })
             
-            # Position nodes in a circle around the center (50, 50)
-            angle = (i / max(1, len(candidates_list))) * 2 * math.pi
-            # Higher similarity means it's closer to the original node
-            radius = 40 - (float(sim) * 15)
-            x = 50 + radius * math.cos(angle)
-            y = 50 + radius * math.sin(angle)
-            
             propagation_nodes.append({
                 "id": det_id,
                 "title": c["title"][:20] + "...",
                 "views": int(10000 * float(sim)),
                 "risk": risk,
                 "similarity": float(sim),
-                "x": x,
-                "y": y,
+                "x": 0, # Frontend will handle force layout or ignore these
+                "y": 0,
                 "connections": ["original"]
             })
             propagation_nodes[0]["connections"].append(det_id)
-
-        def format_duration(seconds):
-            if not seconds: return "00:00"
-            m = int(seconds // 60)
-            s = int(seconds % 60)
-            return f"{m:02d}:{s:02d}"
 
         mapped_results = {
             "job_id": job_id,
             "status": "completed",
             "input_video": {
                 "title": raw_results["input_video"].get("title", "Unknown"),
-                "thumbnailUrl": raw_results["input_video"].get("thumbnail_url") or "https://images.unsplash.com/photo-1616423640778-28d1b53229bd?auto=format&fit=crop&q=80&w=1200",
-                "duration": format_duration(raw_results["input_video"].get("duration")),
+                "thumbnailUrl": raw_results["input_video"].get("thumbnail_url", ""),
+                "duration": "00:00",
                 "resolution": "1080p",
                 "uploadedAt": "2024-03-27T10:00:00Z",
-                "platform": "youtube"
+                "platform": "youtube",
+                "channel": raw_results["input_video"].get("uploader", "Unknown Channel")
             },
             "fingerprint": {
                 "id": f"FP-{uuid.uuid4().hex[:8].upper()}",
@@ -325,6 +141,12 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
                     "value": "$14,200",
                     "change": "+8.1%",
                     "positive": False
+                },
+                {
+                    "label": "Candidate Key",
+                    "value": f"{len(detections)}",
+                    "change": f"Frame matches: {len(detections)}",
+                    "positive": True
                 }
             ],
             "detections": detections,
@@ -335,17 +157,11 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
         jobs[job_id]["progress"] = {"stage": "done", "percent": 100, "details": "Analysis complete"}
         jobs[job_id]["results"] = mapped_results
         
-        # Start AI report generation in background after analysis completes
-        print(f"Triggering background AI report generation for {job_id}...")
-        save_jobs() # Persist analysis results before starting report
-        generate_report_for_job(job_id, mapped_results)
-        
     except Exception as e:
         import traceback
         traceback.print_exc()
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["error"] = str(e)
-        save_jobs()
 
 
 @app.post("/api/analyze")
@@ -356,7 +172,6 @@ def start_analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         "status": "pending",
         "progress": {"stage": "queued", "percent": 0, "details": "Job queued"}
     }
-    save_jobs()
     import threading
     t = threading.Thread(target=run_analysis_task, args=(job_id, req))
     t.start()
@@ -400,6 +215,97 @@ def precheck(file: UploadFile = File(...)):
         ]
     }
 
+@app.post("/api/report/generate")
+def generate_report(job_id: str):
+    """Generate an AI-powered comprehensive report for a completed analysis."""
+    if job_id not in jobs or jobs[job_id]["status"] != "completed":
+        return {"error": "Job not found or not completed"}, 400
+    
+    results = jobs[job_id].get("results", {})
+    detections = results.get("detections", [])
+    input_video = results.get("input_video", {})
+    risk_summary = results.get("risk_summary", {})
+    
+    # Calculate statistics
+    total_detections = len(detections)
+    high_risk = risk_summary.get("high", 0)
+    medium_risk = risk_summary.get("medium", 0)
+    low_risk = risk_summary.get("low", 0)
+    avg_similarity = sum(d.get("similarity", 0) for d in detections) / max(total_detections, 1)
+    
+    # Generate AI insights using simple heuristics (can be replaced with actual LLM)
+    insights = []
+    
+    if high_risk > 0:
+        insights.append(f"🚨 CRITICAL: {high_risk} high-risk matches detected with similarity scores above 85%. Immediate action recommended.")
+    
+    if avg_similarity > 0.8:
+        insights.append(f"⚠️ High average similarity ({avg_similarity:.1%}) indicates potential widespread infringement across {total_detections} videos.")
+    
+    if total_detections > 5:
+        insights.append(f"📊 Large-scale distribution detected: Content found on {total_detections} different videos/channels.")
+        top_channels = {}
+        for d in detections:
+            channel = d.get("channel", "Unknown")
+            top_channels[channel] = top_channels.get(channel, 0) + 1
+        sorted_channels = sorted(top_channels.items(), key=lambda x: x[1], reverse=True)[:3]
+        for channel, count in sorted_channels:
+            insights.append(f"   • {channel}: {count} match(es)")
+    
+    if medium_risk > 0:
+        insights.append(f"⚠️ {medium_risk} medium-risk matches (60-85% similarity) require review and potential action.")
+    
+    if low_risk > 0:
+        insights.append(f"ℹ️ {low_risk} low-risk matches detected but may require monitoring.")
+    
+    # Recommendations
+    recommendations = []
+    if high_risk > 0:
+        recommendations.append("File DMCA takedown notices with YouTube for high-risk matches")
+        recommendations.append("Monitor infringing accounts for future uploads")
+    
+    if total_detections > 3:
+        recommendations.append("Consider broader copyright protection measures")
+        recommendations.append("Implement automated monitoring for detected channels")
+    
+    if avg_similarity > 0.75:
+        recommendations.append("Escalate to legal team for potential litigation")
+    
+    recommendations.append(f"Re-scan this video periodically to track new instances")
+    
+    report = {
+        "job_id": job_id,
+        "generated_at": str(datetime.datetime.now()),
+        "original_video": {
+            "title": input_video.get("title", "Unknown"),
+            "channel": input_video.get("uploader", "Unknown"),
+            "url": input_video.get("url", ""),
+        },
+        "executive_summary": {
+            "total_matches": total_detections,
+            "high_risk": high_risk,
+            "medium_risk": medium_risk,
+            "low_risk": low_risk,
+            "average_similarity": round(avg_similarity, 4),
+            "risk_level": "CRITICAL" if high_risk > 0 else "HIGH" if medium_risk > 2 else "MEDIUM" if medium_risk > 0 else "LOW"
+        },
+        "ai_insights": insights,
+        "recommendations": recommendations,
+        "detections": [
+            {
+                "rank": i + 1,
+                "title": d.get("title", ""),
+                "channel": d.get("channel", ""),
+                "similarity": d.get("similarity", 0),
+                "risk": d.get("risk", "low"),
+                "url": d.get("url", ""),
+            }
+            for i, d in enumerate(detections[:20])  # Top 20 detections
+        ]
+    }
+    
+    return report
+
 @app.get("/api/debug/threads")
 def debug_threads():
     import traceback
@@ -410,23 +316,3 @@ def debug_threads():
         stacks.append("".join(traceback.format_stack(frame)))
         stacks.append("-" * 40)
     return {"threads": "\n".join(stacks)}
-
-@app.get("/api/reports/{job_id}")
-def get_ai_report(job_id: str):
-    if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
-        
-    job = jobs[job_id]
-    
-    # Check if report is already generated
-    if "report" in job:
-        return job["report"]
-        
-    # Check if analysis is even done
-    if job["status"] != "completed":
-        return {"status": "pending", "message": "Analysis is still running. Report will be generated upon completion."}
-        
-    # If analysis is done but report is missing (e.g. background task crashed)
-    # We could trigger it here, but per requirements we just return the stored report
-    return {"status": "processing", "message": "Report generation in progress..."}
-

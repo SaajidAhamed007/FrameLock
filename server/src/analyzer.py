@@ -64,6 +64,7 @@ class Analyzer:
                 "url": youtube_url,
                 "duration": input_vector.duration,
                 "thumbnail_url": input_vector.thumbnail,
+                "uploader": input_vector.uploader,
             }
         except RuntimeError as e:
             print(f"  {e}")
@@ -106,6 +107,7 @@ class Analyzer:
                     "title": candidate["title"],
                     "url": candidate["url"],
                     "thumbnail_url": candidate["thumbnail_url"],
+                    "uploader": candidate.get("uploader", "Unknown Channel"),
                     "max_similarity": round(max_sim, 4),
                     "avg_similarity": round(avg_sim, 4),
                     "is_match": is_match,

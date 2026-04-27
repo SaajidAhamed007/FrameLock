@@ -122,15 +122,102 @@ function DetectionCard({
 export function DetectionsSection({ detections, selectedDetection, onSelectDetection }: DetectionsSectionProps) {
   const [filterRisk, setFilterRisk] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
+  const [reportIds, setReportIds] = useState<Set<string>>(new Set())
+  const [showNotification, setShowNotification] = useState<{ type: string; message: string } | null>(null)
+
+  const handleMarkReviewed = () => {
+    if (!selectedDetection) return
+    const newReviewed = new Set(reviewedIds)
+    if (newReviewed.has(selectedDetection.id)) {
+      newReviewed.delete(selectedDetection.id)
+    } else {
+      newReviewed.add(selectedDetection.id)
+    }
+    setReviewedIds(newReviewed)
+    setShowNotification({
+      type: 'success',
+      message: newReviewed.has(selectedDetection.id) ? 'Marked as reviewed' : 'Removed from reviewed',
+    })
+    setTimeout(() => setShowNotification(null), 2000)
+  }
+
+  const handleFlagForTakedown = () => {
+    if (!selectedDetection) return
+    const newFlagged = new Set(flaggedIds)
+    if (newFlagged.has(selectedDetection.id)) {
+      newFlagged.delete(selectedDetection.id)
+    } else {
+      newFlagged.add(selectedDetection.id)
+    }
+    setFlaggedIds(newFlagged)
+    setShowNotification({
+      type: 'warning',
+      message: newFlagged.has(selectedDetection.id) ? 'Flagged for takedown' : 'Removed from flagged',
+    })
+    setTimeout(() => setShowNotification(null), 2000)
+  }
+
+  const handleAddToReport = () => {
+    if (!selectedDetection) return
+    const newReport = new Set(reportIds)
+    if (newReport.has(selectedDetection.id)) {
+      newReport.delete(selectedDetection.id)
+    } else {
+      newReport.add(selectedDetection.id)
+    }
+    setReportIds(newReport)
+    setShowNotification({
+      type: 'info',
+      message: newReport.has(selectedDetection.id) ? 'Added to report' : 'Removed from report',
+    })
+    setTimeout(() => setShowNotification(null), 2000)
+  }
 
   const filteredDetections = detections
     .filter(d => !filterRisk || d.risk === filterRisk)
     .filter(d => !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.channel.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(d => !reviewedIds.has(d.id))
 
   const highlights = selectedDetection ? (mockExplainability[selectedDetection.id]?.highlights ?? []) : []
 
   return (
     <section className="h-full flex flex-col gap-5">
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed top-4 right-4 px-4 py-3 rounded-xl text-sm font-semibold z-50"
+            style={{
+              backgroundColor:
+                showNotification.type === 'success'
+                  ? 'rgba(16,185,129,0.2)'
+                  : showNotification.type === 'warning'
+                    ? 'rgba(239,68,68,0.2)'
+                    : 'rgba(99,102,241,0.2)',
+              border:
+                showNotification.type === 'success'
+                  ? '1px solid rgba(16,185,129,0.4)'
+                  : showNotification.type === 'warning'
+                    ? '1px solid rgba(239,68,68,0.4)'
+                    : '1px solid rgba(99,102,241,0.4)',
+              color:
+                showNotification.type === 'success'
+                  ? '#10B981'
+                  : showNotification.type === 'warning'
+                    ? '#EF4444'
+                    : '#818CF8',
+            }}
+          >
+            {showNotification.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Filter Bar */}
       <div className="flex items-center gap-3 flex-wrap">
         {/* Search */}
@@ -331,29 +418,44 @@ export function DetectionsSection({ detections, selectedDetection, onSelectDetec
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={handleMarkReviewed}
                     className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold text-sm transition-colors"
-                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981' }}
+                    style={{
+                      backgroundColor: reviewedIds.has(selectedDetection.id) ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.15)',
+                      border: `1px solid rgba(16,185,129,${reviewedIds.has(selectedDetection.id) ? 0.5 : 0.3})`,
+                      color: '#10B981',
+                    }}
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    Mark Reviewed
+                    {reviewedIds.has(selectedDetection.id) ? 'Reviewed ✓' : 'Mark Reviewed'}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={handleFlagForTakedown}
                     className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold text-sm transition-colors"
-                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444' }}
+                    style={{
+                      backgroundColor: flaggedIds.has(selectedDetection.id) ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)',
+                      border: `1px solid rgba(239,68,68,${flaggedIds.has(selectedDetection.id) ? 0.5 : 0.3})`,
+                      color: '#EF4444',
+                    }}
                   >
                     <Flag className="w-4 h-4" />
-                    Flag for Takedown
+                    {flaggedIds.has(selectedDetection.id) ? 'Flagged ✓' : 'Flag for Takedown'}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={handleAddToReport}
                     className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold text-sm transition-colors"
-                    style={{ backgroundColor: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#818CF8' }}
+                    style={{
+                      backgroundColor: reportIds.has(selectedDetection.id) ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)',
+                      border: `1px solid rgba(99,102,241,${reportIds.has(selectedDetection.id) ? 0.5 : 0.3})`,
+                      color: '#818CF8',
+                    }}
                   >
                     <Pin className="w-4 h-4" />
-                    Add to Report
+                    {reportIds.has(selectedDetection.id) ? 'In Report ✓' : 'Add to Report'}
                   </motion.button>
                 </div>
               </motion.div>

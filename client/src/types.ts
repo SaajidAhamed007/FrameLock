@@ -25,6 +25,7 @@ export interface OriginalVideo {
   resolution: string
   uploadedAt: string
   platform: string
+  channel?: string
 }
 
 export interface FingerprintInfo {

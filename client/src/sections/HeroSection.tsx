@@ -238,15 +238,15 @@ export function HeroSection({ video, fingerprint, riskSummary }: HeroSectionProp
             </p>
 
             {/* Thumbnail */}
-            <div className="mx-4 mt-3 rounded-xl overflow-hidden relative" style={{ aspectRatio: '16/9', backgroundColor: '#09090B' }}>
-              {video.thumbnailUrl && (
+            <div className="mx-4 mt-3 rounded-xl overflow-hidden relative flex items-center justify-center" style={{ aspectRatio: '16/9', backgroundColor: '#09090B' }}>
+              {video.thumbnailUrl ? (
                 <img
                   src={video.thumbnailUrl}
                   alt={video.title}
                   className="w-full h-full object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                 />
-              )}
+              ) : null}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             </div>
 
@@ -254,6 +254,11 @@ export function HeroSection({ video, fingerprint, riskSummary }: HeroSectionProp
               <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: '#E4E4E7' }}>
                 {video.title}
               </p>
+              {video.channel && (
+                <p className="text-[11px]" style={{ color: '#A1A1AA' }}>
+                  {video.channel}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { icon: Clock, label: video.duration },

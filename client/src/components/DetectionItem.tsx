@@ -2,7 +2,8 @@ import { Card } from './Card'
 import { RiskBadge } from './RiskBadge'
 import type { Detection } from '../types'
 import { formatViews, getSimilarityPercent, getRiskColor } from '../lib/utils'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Video } from 'lucide-react'
+import { useState } from 'react'
 
 interface DetectionItemProps {
   detection: Detection
@@ -14,6 +15,14 @@ interface DetectionItemProps {
 export function DetectionItem({ detection, isSelected, rank, onSelect }: DetectionItemProps) {
   const color = getRiskColor(detection.risk)
   const pct = detection.similarity * 100
+  const [imageError, setImageError] = useState(false)
+
+  // Debug logging
+  console.log(`[DetectionItem] Rendering ${detection.title}:`, {
+    thumbnailUrl: detection.thumbnailUrl,
+    imageError,
+    willShowImage: !imageError && !!detection.thumbnailUrl
+  })
 
   return (
     <Card
@@ -37,16 +46,21 @@ export function DetectionItem({ detection, isSelected, rank, onSelect }: Detecti
           >
             {rank}
           </div>
-          <div className="w-20 h-12 rounded-lg overflow-hidden bg-zinc-800">
-            <img
-              src={detection.thumbnailUrl}
-              alt={detection.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-              }}
-            />
+          <div className="w-20 h-12 rounded-lg overflow-hidden bg-zinc-800 flex items-center justify-center">
+            {!imageError && detection.thumbnailUrl ? (
+              <img
+                src={detection.thumbnailUrl}
+                alt={detection.title}
+                className="w-full h-full object-cover"
+                onError={() => {
+                  console.error(`[DetectionItem] Image failed to load: ${detection.thumbnailUrl}`)
+                  setImageError(true)
+                }}
+                onLoad={() => console.log(`[DetectionItem] Image loaded: ${detection.thumbnailUrl}`)}
+              />
+            ) : (
+              <Video className="w-6 h-6" style={{ color: '#52525B' }} />
+            )}
           </div>
           {/* Similarity bar at bottom of thumb */}
           <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>

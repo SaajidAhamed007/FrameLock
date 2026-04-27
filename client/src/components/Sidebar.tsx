@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Eye,
   User,
+  Archive,
 } from 'lucide-react'
 
 import { Logo } from './Logo'
@@ -27,6 +28,7 @@ const navItems = [
   { id: 'detections', label: 'Detections', icon: Zap },
   { id: 'propagation', label: 'Propagation', icon: Share2 },
   { id: 'reports', label: 'Reports', icon: FileBarChart2 },
+  { id: 'assets', label: 'Monitored Assets', icon: Archive },
 ]
 
 const platforms = [

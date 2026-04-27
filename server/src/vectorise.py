@@ -92,6 +92,10 @@ class VideoFrameIterator:
         return self._video_info.get("thumbnail", "")
 
     @property
+    def uploader(self) -> str:
+        return self._video_info.get("uploader", "Unknown Channel")
+
+    @property
     def timestamps(self) -> list:
         return list(self._timestamps)
 
@@ -174,11 +178,12 @@ class VectorEmbedding:
     _embedding_service = None
     _service_lock = threading.Lock()
 
-    def __init__(self, title: str = "Unknown", video_id: str = "", duration: float = 0.0, thumbnail: str = ""):
+    def __init__(self, title: str = "Unknown", video_id: str = "", duration: float = 0.0, thumbnail: str = "", uploader: str = "Unknown Channel"):
         self.title = title
         self.video_id = video_id
         self.duration = duration
         self.thumbnail = thumbnail
+        self.uploader = uploader
         self._embeddings = []
         self._lock = threading.Lock()
         self._ensure_embedding_service()
@@ -316,7 +321,8 @@ def vectorise(url: str, n_frames: int = 3) -> VectorEmbedding:
         title=video.title,
         video_id=video.video_id,
         duration=video.duration,
-        thumbnail=video.thumbnail_url
+        thumbnail=video.thumbnail_url,
+        uploader=video.uploader
     )
 
     # Step 3: Pipelined loop — fetch and embed overlap

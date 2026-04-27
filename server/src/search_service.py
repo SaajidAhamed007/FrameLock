@@ -51,6 +51,7 @@ class SearchService:
 
                 video_id = entry.get("id", "")
                 title = entry.get("title", "Unknown")
+                uploader = entry.get("uploader", "Unknown Channel")
 
                 # YouTube thumbnail URL pattern
                 thumbnail_url = entry.get("thumbnail") or entry.get("thumbnails", [{}])[0].get("url", "")
@@ -60,6 +61,7 @@ class SearchService:
                 candidates.append({
                     "id": video_id,
                     "title": title,
+                    "uploader": uploader,
                     "url": f"https://www.youtube.com/watch?v={video_id}",
                     "thumbnail_url": thumbnail_url,
                 })

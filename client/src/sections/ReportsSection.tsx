@@ -92,7 +92,9 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     setIsGenerating(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:8000/api/reports/${jobId}`)
+      const res = await fetch(`http://localhost:8000/api/report/generate?job_id=${jobId}`, {
+        method: 'POST',
+      })
       if (!res.ok) throw new Error('Failed to generate AI report')
       setAiReport(await res.json())
     } catch (err: any) {
@@ -100,6 +102,73 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const handleExportCSV = () => {
+    if (!aiReport && detections.length === 0) {
+      alert('No data to export')
+      return
+    }
+
+    // Prepare CSV headers
+    const headers = ['Rank', 'Title', 'Channel', 'Similarity', 'Risk', 'Views', 'URL']
+    
+    // Prepare CSV rows
+    const rows = (aiReport?.detections || detections).map((d: any, idx: number) => [
+      (idx + 1).toString(),
+      `"${d.title || d.title || ''}"`,
+      `"${d.channel || ''}"`,
+      ((d.similarity || 0) * 100).toFixed(2) + '%',
+      (d.risk || 'unknown').toUpperCase(),
+      (d.views || 0).toLocaleString(),
+      d.url || ''
+    ])
+
+    // Build CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n')
+
+    // Add report summary at top if AI report exists
+    let fullContent = csvContent
+    if (aiReport) {
+      const summary = [
+        '# VisionGuard Intelligence Report',
+        `Generated: ${new Date(aiReport.generated_at).toLocaleString()}`,
+        `Original Video: ${aiReport.original_video?.title}`,
+        `Channel: ${aiReport.original_video?.channel}`,
+        '',
+        '# Executive Summary',
+        `Total Matches: ${aiReport.executive_summary.total_matches}`,
+        `High Risk: ${aiReport.executive_summary.high_risk}`,
+        `Medium Risk: ${aiReport.executive_summary.medium_risk}`,
+        `Low Risk: ${aiReport.executive_summary.low_risk}`,
+        `Risk Level: ${aiReport.executive_summary.risk_level}`,
+        `Average Similarity: ${(aiReport.executive_summary.average_similarity * 100).toFixed(2)}%`,
+        '',
+        '# AI Insights',
+        ...aiReport.ai_insights.map((i: string) => `${i}`),
+        '',
+        '# Recommendations',
+        ...aiReport.recommendations.map((r: string) => `${r}`),
+        '',
+        '# Detections',
+        ''
+      ].join('\n')
+      fullContent = summary + '\n' + csvContent
+    }
+
+    // Create blob and download
+    const blob = new Blob([fullContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `visionguard-report-${jobId.slice(0, 8)}-${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -128,7 +197,10 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
           All Platforms
         </button>
         <div className="ml-auto flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm bg-white/[0.03] border border-white/8 text-[#A1A1AA] hover:bg-white/[0.05] transition-colors">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm bg-white/[0.03] border border-white/8 text-[#A1A1AA] hover:bg-white/[0.05] transition-colors"
+          >
             <Download className="w-4 h-4 text-[#52525B]" />
             Export CSV
           </button>
@@ -165,43 +237,85 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
             <div className="flex items-center gap-3 px-6 py-4 border-b border-[#6366F1]/15" style={{ background: 'rgba(99,102,241,0.07)' }}>
               <Bot className="w-4 h-4 text-[#6366F1]" />
               <h2 className="text-sm font-bold text-[#E4E4E7]">AI Intelligence Report</h2>
-              <span className="ml-auto text-[10px] text-[#52525B] uppercase tracking-widest">gemini-2.5-flash</span>
+              <span className="ml-auto text-[10px] text-[#52525B] uppercase tracking-widest">{new Date(aiReport.generated_at).toLocaleDateString()}</span>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-8">
-              <div className="col-span-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#6366F1] mb-2">Executive Summary</p>
-                <p className="text-sm text-[#A1A1AA] leading-relaxed">{aiReport.executive_summary}</p>
-              </div>
+            <div className="p-6 space-y-6">
+              {/* Executive Summary */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#EF4444] mb-3">Key Threats</p>
-                <div className="space-y-3">
-                  {aiReport.key_threats?.map((t: any, i: number) => (
-                    <div key={i} className="p-3 rounded-xl bg-[#EF4444]/5 border border-[#EF4444]/10">
-                      <p className="text-xs font-bold text-[#E4E4E7] mb-1 line-clamp-1">{t.title}</p>
-                      <p className="text-[11px] text-[#EF4444]/70">{t.risk_reason}</p>
-                    </div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#6366F1] mb-3">Executive Summary</p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
+                    <p className="text-[10px] text-[#52525B] mb-1">Total Matches</p>
+                    <p className="text-2xl font-bold text-[#6366F1]">{aiReport.executive_summary.total_matches}</p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
+                    <p className="text-[10px] text-[#52525B] mb-1">Risk Level</p>
+                    <p className="text-lg font-bold" style={{ color: aiReport.executive_summary.risk_level === 'CRITICAL' ? '#EF4444' : aiReport.executive_summary.risk_level === 'HIGH' ? '#F59E0B' : '#10B981' }}>
+                      {aiReport.executive_summary.risk_level}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                    <p className="text-[10px] text-[#52525B] mb-1">High Risk</p>
+                    <p className="text-2xl font-bold text-[#EF4444]">{aiReport.executive_summary.high_risk}</p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                    <p className="text-[10px] text-[#52525B] mb-1">Avg Similarity</p>
+                    <p className="text-2xl font-bold text-[#F59E0B]">{(aiReport.executive_summary.average_similarity * 100).toFixed(0)}%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Insights */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#2DD4BF] mb-3">🤖 AI Insights</p>
+                <div className="space-y-2">
+                  {aiReport.ai_insights?.map((insight: string, i: number) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="p-3 rounded-xl border"
+                      style={{ backgroundColor: 'rgba(45,212,191,0.06)', borderColor: 'rgba(45,212,191,0.2)' }}
+                    >
+                      <p className="text-xs text-[#A1A1AA] leading-relaxed">{insight}</p>
+                    </motion.div>
                   ))}
                 </div>
               </div>
-              <div className="space-y-5">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#2DD4BF] mb-2">Propagation Analysis</p>
-                  <p className="text-xs text-[#A1A1AA] leading-relaxed">{aiReport.propagation_analysis}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#F59E0B] mb-2">Impact Assessment</p>
-                  <p className="text-xs text-[#A1A1AA] leading-relaxed">{aiReport.impact_assessment}</p>
+
+              {/* Recommendations */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#10B981] mb-3">✓ Recommended Actions</p>
+                <div className="space-y-2">
+                  {aiReport.recommendations?.map((rec: string, i: number) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="flex items-start gap-3 p-3 rounded-xl border"
+                      style={{ backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }}
+                    >
+                      <span className="text-[#10B981] font-bold mt-0.5 shrink-0">{i + 1}.</span>
+                      <p className="text-xs text-[#A1A1AA] leading-relaxed">{rec}</p>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
-              <div className="col-span-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#10B981] mb-3">Recommended Actions</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {aiReport.recommendations?.map((r: string, i: number) => (
-                    <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-[#10B981]/5 border border-[#10B981]/10">
-                      <span className="text-[#10B981] mt-0.5 shrink-0">›</span>
-                      <p className="text-xs text-[#A1A1AA]">{r}</p>
-                    </div>
-                  ))}
+
+              {/* Original Video Info */}
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#52525B] mb-2">Original Video</p>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#52525B]">Title:</span>
+                    <p className="text-[#E4E4E7] font-semibold truncate">{aiReport.original_video?.title}</p>
+                  </div>
+                  <div>
+                    <span className="text-[#52525B]">Channel:</span>
+                    <p className="text-[#E4E4E7] font-semibold truncate">{aiReport.original_video?.channel}</p>
+                  </div>
                 </div>
               </div>
             </div>
