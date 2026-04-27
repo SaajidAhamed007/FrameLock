@@ -1,5 +1,11 @@
 import sys
 import os
+import io
+
+# Fix Windows console encoding for Unicode output
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -39,7 +45,7 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
             n_frames=req.frames,
             m_frames=req.candidate_frames,
             threshold=req.threshold,
-            max_candidates=2 # Keep it low for faster testing on CPU
+            max_candidates=10
         )
         jobs[job_id]["progress"] = {"stage": "detecting", "percent": 50, "details": "Analyzing candidates..."}
         
@@ -66,7 +72,9 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
             }
         ]
         
-        for c in raw_results.get("candidates", []):
+        import math
+        candidates_list = raw_results.get("candidates", [])
+        for i, c in enumerate(candidates_list):
             sim = c["max_similarity"]
             if sim >= 0.85:
                 risk = "high"
@@ -93,25 +101,38 @@ def run_analysis_task(job_id: str, req: AnalyzeRequest):
                 "url": c["url"]
             })
             
+            # Position nodes in a circle around the center (50, 50)
+            angle = (i / max(1, len(candidates_list))) * 2 * math.pi
+            # Higher similarity means it's closer to the original node
+            radius = 40 - (float(sim) * 15)
+            x = 50 + radius * math.cos(angle)
+            y = 50 + radius * math.sin(angle)
+            
             propagation_nodes.append({
                 "id": det_id,
                 "title": c["title"][:20] + "...",
                 "views": int(10000 * float(sim)),
                 "risk": risk,
                 "similarity": float(sim),
-                "x": 0, # Frontend will handle force layout or ignore these
-                "y": 0,
+                "x": x,
+                "y": y,
                 "connections": ["original"]
             })
             propagation_nodes[0]["connections"].append(det_id)
+
+        def format_duration(seconds):
+            if not seconds: return "00:00"
+            m = int(seconds // 60)
+            s = int(seconds % 60)
+            return f"{m:02d}:{s:02d}"
 
         mapped_results = {
             "job_id": job_id,
             "status": "completed",
             "input_video": {
                 "title": raw_results["input_video"].get("title", "Unknown"),
-                "thumbnailUrl": "https://images.unsplash.com/photo-1616423640778-28d1b53229bd?auto=format&fit=crop&q=80&w=1200", # Placeholder
-                "duration": "00:00",
+                "thumbnailUrl": raw_results["input_video"].get("thumbnail_url") or "https://images.unsplash.com/photo-1616423640778-28d1b53229bd?auto=format&fit=crop&q=80&w=1200",
+                "duration": format_duration(raw_results["input_video"].get("duration")),
                 "resolution": "1080p",
                 "uploadedAt": "2024-03-27T10:00:00Z",
                 "platform": "youtube"

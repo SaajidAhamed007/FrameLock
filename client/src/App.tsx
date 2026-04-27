@@ -4,16 +4,18 @@ import { TopNav } from './components/TopNav'
 import { HeroSection } from './sections/HeroSection'
 import { PipelineSection } from './sections/PipelineSection'
 import { MainGridSection } from './sections/MainGridSection'
-import { ExplainabilityPanel } from './sections/ExplainabilityPanel'
+import { DetectionsSection } from './sections/DetectionsSection'
+import { PropagationSection } from './sections/PropagationSection'
+import { ReportsSection } from './sections/ReportsSection'
 import { PreUploadSection } from './sections/PreUploadSection'
 import { NewScanSection } from './sections/NewScanSection'
 import { useJobStatus, useJobResults } from './hooks/useApi'
-import { mockExplainability } from './data' // Use mock explainability for now
 import type { Detection } from './types'
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard')
   const [selectedDetection, setSelectedDetection] = useState<Detection | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
 
   const { status, progress } = useJobStatus(jobId)
@@ -23,38 +25,56 @@ export default function App() {
     setSelectedDetection((prev) => (prev?.id === d.id ? null : d))
   }
 
+  const getPageTitle = () => {
+    switch (activePage) {
+      case 'dashboard': return 'Scan Overview'
+      case 'scan': return 'New Scan'
+      case 'precheck': return 'Pre-upload Check'
+      case 'detections': return 'Detections'
+      case 'propagation': return 'Propagation Graph'
+      case 'reports': return 'Intelligence Reports'
+      default: return 'VisionGuard'
+    }
+  }
+
   const renderContent = () => {
     if (activePage === 'precheck') {
       return (
-        <main className="flex-1 px-8 pb-12 space-y-8 animate-fade-in" style={{ paddingTop: 88 }}>
+        <main className="flex-1 px-8 pb-12 animate-fade-in" style={{ paddingTop: 88, height: '100vh' }}>
           <PreUploadSection />
         </main>
       )
     }
 
-    if (!jobId) {
+    if (!jobId || activePage === 'scan') {
       return (
-        <main className="flex-1 px-8 pb-12 animate-fade-in" style={{ paddingTop: 88 }}>
-          <NewScanSection onJobStarted={setJobId} />
+        <main className="flex-1 px-8 pb-12 animate-fade-in" style={{ paddingTop: 88, height: '100vh' }}>
+          <NewScanSection onJobStarted={(id) => {
+            setJobId(id)
+            setActivePage('dashboard')
+          }} />
         </main>
       )
     }
 
-    // Dashboard view while job is running or completed
-    return (
-      <main className="flex-1 px-8 pb-12 space-y-8 animate-fade-in" style={{ paddingTop: 88 }}>
-        <PipelineSection status={status} progress={progress} />
-        <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+    if (status !== 'completed' || !results) {
+      return (
+        <main className="flex-1 px-8 pb-12 animate-fade-in" style={{ paddingTop: 88, height: '100vh' }}>
+          <PipelineSection status={status} progress={progress} />
+        </main>
+      )
+    }
 
-        {status === 'completed' && results && (
-          <>
+    // Finished Job Routing
+    return (
+      <main className="flex-1 px-8 pb-8 flex flex-col animate-fade-in h-screen" style={{ paddingTop: 88 }}>
+        {activePage === 'dashboard' && (
+          <div className="space-y-8 overflow-y-auto pb-8 pr-2">
             <HeroSection
               video={results.input_video}
               fingerprint={results.fingerprint}
               riskSummary={results.risk_summary}
             />
-            <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.04)' }} />
-
             <MainGridSection
               detections={results.detections}
               propagationNodes={results.propagation_nodes}
@@ -63,23 +83,42 @@ export default function App() {
               selectedDetection={selectedDetection}
               onSelectDetection={handleSelectDetection}
             />
-            <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+          </div>
+        )}
 
-            <ExplainabilityPanel
-              detection={selectedDetection}
-              data={mockExplainability}
-            />
-          </>
+        {activePage === 'detections' && (
+          <DetectionsSection 
+            detections={results.detections}
+            selectedDetection={selectedDetection}
+            onSelectDetection={handleSelectDetection}
+          />
+        )}
+
+        {activePage === 'propagation' && (
+          <PropagationSection
+            nodes={results.propagation_nodes}
+            detections={results.detections}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={(id) => setSelectedNodeId(prev => prev === id ? null : id)}
+          />
+        )}
+
+        {activePage === 'reports' && (
+          <ReportsSection
+            detections={results.detections}
+            metrics={results.metrics}
+            riskSummary={results.risk_summary}
+          />
         )}
       </main>
     )
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#09090B' }}>
+    <div className="min-h-screen flex" style={{ backgroundColor: '#09090B' }}>
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
-      <div className="flex flex-col min-h-screen" style={{ marginLeft: 240 }}>
-        <TopNav title={activePage === 'dashboard' ? 'Scan Overview' : 'Pre-upload Check'} />
+      <div className="flex-1 flex flex-col min-h-screen min-w-0" style={{ marginLeft: 240 }}>
+        <TopNav title={getPageTitle()} />
         {renderContent()}
       </div>
     </div>

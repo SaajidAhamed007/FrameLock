@@ -9,3 +9,5 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+pip install google-genai 
+google-cloud-aiplatform
