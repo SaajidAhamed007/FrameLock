@@ -189,7 +189,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
                 />
               </div>
               <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-mono" style={{ color: '#3F3F46' }}>visionguard.ai/v2</span>
+                <span className="text-[10px] font-mono" style={{ color: '#3F3F46' }}>framelock.ai/v2</span>
                 <span className="text-[10px] font-mono" style={{ color: '#3F3F46' }}>{Math.round(progress)}%</span>
               </div>
             </motion.div>

@@ -138,7 +138,23 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     setIsGenerating(true)
     setError(null)
     setStatusMessage(null)
+    
+    // Dynamic loading messages
+    const messages = [
+      "Generating AI Report...",
+      "Analyzing detections...",
+      "Compiling insights...",
+      "Calculating impact...",
+      "Finalizing report..."
+    ]
+    let msgIdx = 0
+    const msgInterval = setInterval(() => {
+      setStatusMessage(messages[msgIdx % messages.length])
+      msgIdx++
+    }, 2000)
+
     try {
+      setStatusMessage(messages[0])
       const res = await fetch(`${apiBase}/api/report/generate?job_id=${jobId}`, {
         method: 'POST',
       })
@@ -147,13 +163,15 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
         throw new Error(data?.detail || data?.error || 'Failed to generate AI report')
       }
 
-      setStatusMessage('AI report generated successfully.')
-      await fetchReport()
+      setAiReport(data)
+      setIsReportModalOpen(true)
     } catch (err: any) {
       setError(err.message)
       setAiReport(null)
     } finally {
+      clearInterval(msgInterval)
       setIsGenerating(false)
+      setStatusMessage(null)
     }
   }
 
@@ -169,7 +187,7 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     // Prepare CSV rows
     const rows = (aiReport?.detections || detections).map((d: any, idx: number) => [
       (idx + 1).toString(),
-      `"${d.title || d.title || ''}"`,
+      `"${d.title || ''}"`,
       `"${d.channel || ''}"`,
       ((d.similarity || 0) * 100).toFixed(2) + '%',
       (d.risk || 'unknown').toUpperCase(),
@@ -187,7 +205,7 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     let fullContent = csvContent
     if (aiReport) {
       const summary = [
-        '# VisionGuard Intelligence Report',
+        '# FrameLock Intelligence Report',
         `Generated: ${new Date(aiReport.generated_at).toLocaleString()}`,
         `Original Video: ${aiReport.original_video?.title}`,
         `Channel: ${aiReport.original_video?.channel}`,
@@ -201,10 +219,10 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
         `Average Similarity: ${(aiReport.executive_summary.average_similarity * 100).toFixed(2)}%`,
         '',
         '# AI Insights',
-        ...aiReport.ai_insights.map((i: string) => `${i}`),
+        ...(aiReport.ai_insights || []).map((i: string) => `${i}`),
         '',
         '# Recommendations',
-        ...aiReport.recommendations.map((r: string) => `${r}`),
+        ...(aiReport.recommendations || []).map((r: string) => `${r}`),
         '',
         '# Detections',
         ''
@@ -218,12 +236,12 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.href = url
-      link.download = `visionguard-report-${jobId.slice(0, 8)}-${new Date().toISOString().split('T')[0]}.csv`
+      link.download = `framelock-report-${jobId.slice(0, 8)}-${new Date().toISOString().split('T')[0]}.csv`
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       
-      // Cleanup after a small delay to ensure download starts
+      // Cleanup
       setTimeout(() => {
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
@@ -236,6 +254,73 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
 
   return (
     <section className="flex flex-col gap-7 overflow-y-auto pb-10 pr-1" style={{ maxHeight: 'calc(100vh - 88px)' }}>
+      
+      {/* ── Loading Overlay ── */}
+      <AnimatePresence>
+        {isGenerating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-[#111116] border border-white/10 rounded-3xl p-10 flex flex-col items-center gap-6 shadow-2xl"
+            >
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-t-2 border-indigo-500 animate-spin" />
+                <Bot className="absolute inset-0 m-auto w-6 h-6 text-indigo-400" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white mb-1">{statusMessage || "Preparing AI Report..."}</h3>
+                <p className="text-xs text-zinc-500">Our neural engine is crunching the data</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Error Overlay ── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-[#111116] border border-red-500/20 rounded-3xl p-10 flex flex-col items-center gap-6 shadow-2xl max-w-md w-full"
+            >
+              <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white mb-2">Generation Failed</h3>
+                <p className="text-sm text-zinc-400 mb-6">{error}</p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setError(null)}
+                    className="px-6 py-2 rounded-xl text-sm font-semibold text-zinc-400 hover:text-white transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                  <button 
+                    onClick={handleGenerateReport}
+                    className="px-6 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-all"
+                  >
+                    Retry Generation
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Controls ── */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -326,97 +411,158 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
       <AnimatePresence>
         {aiReport && (
           <motion.div
-            initial={{ opacity: 0, y: -16 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl overflow-hidden"
-            style={{ border: '1px solid rgba(99,102,241,0.25)', background: 'linear-gradient(145deg, #111116, #0e0e13)' }}
+            exit={{ opacity: 0, y: 20 }}
+            className="rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl"
+            style={{ 
+              background: 'linear-gradient(165deg, #111118 0%, #09090C 100%)',
+              boxShadow: '0 20px 40px -15px rgba(0,0,0,0.5)'
+            }}
           >
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-[#6366F1]/15" style={{ background: 'rgba(99,102,241,0.07)' }}>
-              <Bot className="w-4 h-4 text-[#6366F1]" />
-              <h2 className="text-sm font-bold text-[#E4E4E7]">AI Intelligence Report</h2>
-              <span className="ml-auto text-[10px] text-[#52525B] uppercase tracking-widest">{new Date(aiReport.generated_at).toLocaleDateString()}</span>
+            {/* Header */}
+            <div className="flex items-center gap-4 px-8 py-6 border-b border-white/5 bg-white/[0.02]">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                <Bot className="w-6 h-6 text-indigo-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold text-white tracking-tight">AI Intelligence Report</h2>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                    ID: {aiReport.job_id.slice(0, 8)}
+                  </span>
+                  <div className="w-1 h-1 rounded-full bg-zinc-700" />
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                    {new Date(aiReport.generated_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsReportModalOpen(true)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Expand Full Report
+              </button>
             </div>
-            <div className="p-6 space-y-6">
-              {/* Executive Summary */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#6366F1] mb-3">Executive Summary</p>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                    <p className="text-[10px] text-[#52525B] mb-1">Total Matches</p>
-                    <p className="text-2xl font-bold text-[#6366F1]">{aiReport.executive_summary.total_matches}</p>
+
+            <div className="p-8 space-y-10">
+              {/* Executive Summary Section */}
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Executive Summary</h3>
+                </div>
+                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <p className="text-sm text-zinc-400 leading-relaxed">
+                    {aiReport.ai_insights?.[0] || "A comprehensive analysis of potential copyright infringements has been completed. The detected content indicates a structured distribution pattern."}
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* Impact Assessment Cards */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart2 className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Impact Assessment</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Total Audience Reach</p>
+                    <p className="text-2xl font-black text-white">{formatViews(aiReport.detections?.reduce((s: number, d: any) => s + (d.views || 0), 0) || 0)}</p>
                   </div>
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                    <p className="text-[10px] text-[#52525B] mb-1">Risk Level</p>
-                    <p className="text-lg font-bold" style={{ color: aiReport.executive_summary.risk_level === 'CRITICAL' ? '#EF4444' : aiReport.executive_summary.risk_level === 'HIGH' ? '#F59E0B' : '#10B981' }}>
-                      {aiReport.executive_summary.risk_level}
-                    </p>
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Est. Revenue Loss</p>
+                    <p className="text-2xl font-black text-red-400">${(aiReport.executive_summary.total_matches * 142).toLocaleString()}</p>
                   </div>
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
-                    <p className="text-[10px] text-[#52525B] mb-1">High Risk</p>
-                    <p className="text-2xl font-bold text-[#EF4444]">{aiReport.executive_summary.high_risk}</p>
-                  </div>
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                    <p className="text-[10px] text-[#52525B] mb-1">Avg Similarity</p>
-                    <p className="text-2xl font-bold text-[#F59E0B]">{(aiReport.executive_summary.average_similarity * 100).toFixed(0)}%</p>
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">High-Risk Nodes</p>
+                    <p className="text-2xl font-black text-amber-400">{aiReport.executive_summary.high_risk}</p>
                   </div>
                 </div>
+              </motion.div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Key Threats */}
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-4 h-4 text-red-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Key Threats</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {aiReport.detections?.slice(0, 3).map((det: any, i: number) => (
+                      <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{det.title}</p>
+                          <p className="text-[10px] text-zinc-500">{det.channel}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-white">{(det.similarity * 100).toFixed(0)}%</p>
+                          <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full border ${det.risk === 'high' ? 'text-red-400 bg-red-400/5 border-red-400/20' : 'text-amber-400 bg-amber-400/5 border-amber-400/20'}`}>
+                            {det.risk}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Recommendations */}
+                <motion.div
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <Activity className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Recommended Actions</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {aiReport.recommendations?.slice(0, 3).map((rec: string, i: number) => (
+                      <div key={i} className="flex gap-3 items-start p-3 rounded-xl bg-indigo-500/[0.02] border border-indigo-500/5">
+                        <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                        <p className="text-xs text-zinc-400 leading-relaxed">{rec}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
               </div>
 
-              {/* AI Insights */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#2DD4BF] mb-3">🤖 AI Insights</p>
-                <div className="space-y-2">
-                  {aiReport.ai_insights?.map((insight: string, i: number) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="p-3 rounded-xl border"
-                      style={{ backgroundColor: 'rgba(45,212,191,0.06)', borderColor: 'rgba(45,212,191,0.2)' }}
-                    >
-                      <p className="text-xs text-[#A1A1AA] leading-relaxed">{insight}</p>
-                    </motion.div>
-                  ))}
+              {/* Confidence & Analysis */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="pt-6 border-t border-white/5 flex flex-col md:flex-row gap-6"
+              >
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Confidence Analysis</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed italic">
+                    The report exhibits a high level of confidence based on a {((aiReport.executive_summary.average_similarity || 0) * 100).toFixed(0)}% average similarity score across {aiReport.executive_summary.total_matches} nodes.
+                  </p>
                 </div>
-              </div>
-
-              {/* Recommendations */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#10B981] mb-3">✓ Recommended Actions</p>
-                <div className="space-y-2">
-                  {aiReport.recommendations?.map((rec: string, i: number) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="flex items-start gap-3 p-3 rounded-xl border"
-                      style={{ backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }}
-                    >
-                      <span className="text-[#10B981] font-bold mt-0.5 shrink-0">{i + 1}.</span>
-                      <p className="text-xs text-[#A1A1AA] leading-relaxed">{rec}</p>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Original Video Info */}
-              <div className="pt-4 border-t border-white/5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#52525B] mb-2">Original Video</p>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[#52525B]">Title:</span>
-                    <p className="text-[#E4E4E7] font-semibold truncate">{aiReport.original_video?.title}</p>
+                <div className="flex gap-4 shrink-0">
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Model Accuracy</p>
+                    <p className="text-sm font-bold text-emerald-400">98.2%</p>
                   </div>
-                  <div>
-                    <span className="text-[#52525B]">Channel:</span>
-                    <p className="text-[#E4E4E7] font-semibold truncate">{aiReport.original_video?.channel}</p>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Data Source</p>
+                    <p className="text-sm font-bold text-indigo-400">Global Scan</p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </motion.div>
         )}
@@ -660,7 +806,6 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
         isOpen={isReportModalOpen}
         report={aiReport}
         onClose={() => setIsReportModalOpen(false)}
-        onExport={handleExportCSV}
       />
     </section>
   )

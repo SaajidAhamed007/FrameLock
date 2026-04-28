@@ -559,6 +559,23 @@ def build_report(job_id: str, results: Dict[str, Any]) -> Dict[str, Any]:
     else:
         insights = ["GEMINI_API_KEY not configured"]
         recommendations = ["Configure Gemini API key for AI insights"]
+
+    return {
+        "job_id": job_id,
+        "generated_at": datetime.datetime.now().isoformat(),
+        "original_video": input_video,
+        "executive_summary": {
+            "total_matches": total_detections,
+            "high_risk": high_risk,
+            "medium_risk": medium_risk,
+            "low_risk": low_risk,
+            "risk_level": "CRITICAL" if high_risk > 5 else "HIGH" if high_risk > 0 else "MEDIUM" if medium_risk > 0 else "LOW",
+            "average_similarity": avg_similarity
+        },
+        "ai_insights": insights,
+        "recommendations": recommendations,
+        "detections": detections
+    }
 @app.post("/api/precheck")
 def precheck(file: UploadFile = File(...)):
     # Mocking precheck response for POC

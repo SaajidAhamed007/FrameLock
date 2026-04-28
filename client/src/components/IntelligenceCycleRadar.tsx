@@ -46,7 +46,7 @@ export function IntelligenceCycleRadar({ status, progress }: IntelligenceCycleRa
       date: "Step 2",
       content: `<div class="space-y-2">
         <p><strong>Frames extracted:</strong> ${stage === 'extracting' ? percent * 10 : 1000}</p>
-        <p><strong>Model used:</strong> VisionGuard-ViT-L</p>
+        <p><strong>Model used:</strong> FrameLock-ViT-L</p>
       </div>`,
       category: "Analyze",
       icon: Brain,

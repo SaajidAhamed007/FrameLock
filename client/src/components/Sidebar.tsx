@@ -52,7 +52,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
       <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <Logo size={32} />
         <div>
-          <p className="font-bold text-sm" style={{ color: '#E4E4E7' }}>VisionGuard</p>
+          <p className="font-bold text-sm" style={{ color: '#E4E4E7' }}>FrameLock.AI</p>
           <p className="text-[10px]" style={{ color: '#71717A' }}>AI Intelligence</p>
         </div>
       </div>
@@ -149,7 +149,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
           </div>
           <div className="flex-1 text-left overflow-hidden">
             <p className="text-sm font-medium truncate" style={{ color: '#E4E4E7' }}>Navdeep R.</p>
-            <p className="text-[11px] truncate" style={{ color: '#71717A' }}>navdeep@visionguard.ai</p>
+            <p className="text-[11px] truncate" style={{ color: '#71717A' }}>navdeep@framelock.ai</p>
           </div>
         </button>
       </div>

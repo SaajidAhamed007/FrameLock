@@ -1,4 +1,4 @@
-// Types for the VisionGuard AI dashboard
+// Types for the FrameLock.AI dashboard
 
 export type RiskLevel = 'high' | 'medium' | 'low'
 

@@ -43,7 +43,7 @@ export default function App() {
       case 'propagation': return 'Propagation Graph'
       case 'reports': return 'Intelligence Reports'
       case 'assets': return 'Monitored Assets'
-      default: return 'VisionGuard'
+      default: return 'FrameLock.AI'
     }
   }
 
