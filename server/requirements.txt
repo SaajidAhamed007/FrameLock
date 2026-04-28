@@ -3,7 +3,7 @@ imageio-ffmpeg
 Pillow
 requests
 numpy
-torch
+torch --index-url https://download.pytorch.org/whl/cpu
 transformers
 fastapi
 uvicorn
