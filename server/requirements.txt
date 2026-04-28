@@ -12,3 +12,4 @@ python-multipart
 python-dotenv
 google-genai
 google-cloud-aiplatform
+psycopg2-binary

@@ -56,6 +56,7 @@ export default function App() {
             onAddAsset={(asset) => setAssets([...assets, asset])}
             onRemoveAsset={(id) => setAssets(assets.filter(a => a.id !== id))}
             onUpdateAsset={(updatedAsset) => setAssets(assets.map(a => a.id === updatedAsset.id ? updatedAsset : a))}
+            onSetAssets={(nextAssets) => setAssets(nextAssets)}
           />
         </main>
       )

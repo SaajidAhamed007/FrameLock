@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -75,6 +75,28 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState('14d')
+  const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+
+  useEffect(() => {
+    let isActive = true
+    const loadReport = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/reports/${jobId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (isActive && !data.status) {
+          setAiReport(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch report:', err)
+      }
+    }
+
+    loadReport()
+    return () => {
+      isActive = false
+    }
+  }, [apiBase, jobId])
 
   const total = riskSummary.high + riskSummary.medium + riskSummary.low
   const sortedByViews = [...detections].sort((a, b) => b.views - a.views)
@@ -92,7 +114,7 @@ export function ReportsSection({ jobId, detections, metrics, riskSummary }: Repo
     setIsGenerating(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:8000/api/report/generate?job_id=${jobId}`, {
+      const res = await fetch(`${apiBase}/api/report/generate?job_id=${jobId}`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error('Failed to generate AI report')

@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, Clock, AlertTriangle, CheckCircle2, Play, Loader } from 'lucide-react'
+import { Plus, Trash2, Clock, AlertTriangle, CheckCircle2, Play } from 'lucide-react'
 
-interface Asset {
+export interface Asset {
   id: string
   url: string
   title: string
@@ -17,13 +17,32 @@ interface AssetsSectionProps {
   onAddAsset: (asset: Asset) => void
   onRemoveAsset: (id: string) => void
   onUpdateAsset: (asset: Asset) => void
+  onSetAssets: (assets: Asset[]) => void
 }
 
-export function AssetsSection({ assets, onAddAsset, onRemoveAsset, onUpdateAsset }: AssetsSectionProps) {
+export function AssetsSection({ assets, onAddAsset, onRemoveAsset, onUpdateAsset, onSetAssets }: AssetsSectionProps) {
   const [newUrl, setNewUrl] = useState('')
   const [showNotification, setShowNotification] = useState<{ type: string; message: string } | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [isLoadingTitle, setIsLoadingTitle] = useState(false)
+  const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+
+  const refreshAssets = async () => {
+    try {
+      const response = await fetch(`${apiBase}/api/assets`)
+      if (!response.ok) throw new Error('Failed to fetch assets')
+      const data = await response.json()
+      onSetAssets(data.assets || [])
+    } catch (error) {
+      console.error('Error fetching assets:', error)
+      setShowNotification({ type: 'warning', message: 'Could not load assets. Please try again.' })
+      setTimeout(() => setShowNotification(null), 2000)
+    }
+  }
+
+  useEffect(() => {
+    refreshAssets()
+  }, [])
 
   const handleAddAsset = async () => {
     if (!newUrl.trim()) {
@@ -34,51 +53,49 @@ export function AssetsSection({ assets, onAddAsset, onRemoveAsset, onUpdateAsset
 
     setIsLoadingTitle(true)
     try {
-      // Fetch video info from the backend
-      const response = await fetch('http://localhost:8000/analyze', {
+      const response = await fetch(`${apiBase}/api/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl }),
       })
 
-      if (!response.ok) throw new Error('Failed to fetch video info')
-      
-      const data = await response.json()
-      
-      // Extract title from the response
-      const title = data.input_video?.title || 'Untitled Video'
+      if (!response.ok) throw new Error('Failed to register asset')
 
-      const asset: Asset = {
-        id: crypto.randomUUID(),
-        url: newUrl,
-        title: title,
-        addedAt: new Date().toISOString(),
-        monitoringFrequency: null,
-        lastChecked: null,
-        status: 'idle',
-      }
-
+      const asset: Asset = await response.json()
       onAddAsset(asset)
       setNewUrl('')
-      setShowNotification({ type: 'success', message: `Added "${title}" to monitoring` })
+      setShowNotification({ type: 'success', message: `Added "${asset.title}" to monitoring` })
       setTimeout(() => setShowNotification(null), 2000)
     } catch (error) {
-      console.error('Error fetching video info:', error)
-      setShowNotification({ type: 'warning', message: 'Could not fetch video info. Please check the URL.' })
+      console.error('Error registering asset:', error)
+      setShowNotification({ type: 'warning', message: 'Could not register asset. Please check the URL.' })
       setTimeout(() => setShowNotification(null), 2000)
     } finally {
       setIsLoadingTitle(false)
     }
   }
 
-  const handleSetMonitoring = (assetId: string, frequency: string | null) => {
+  const handleSetMonitoring = async (assetId: string, frequency: string | null) => {
     const asset = assets.find(a => a.id === assetId)
     if (asset) {
-      onUpdateAsset({
-        ...asset,
-        monitoringFrequency: frequency,
-        status: frequency ? 'active' : 'idle',
-      })
+      try {
+        const response = await fetch(`${apiBase}/api/assets/${assetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monitoringFrequency: frequency,
+            status: frequency ? 'active' : 'idle',
+          }),
+        })
+        if (!response.ok) throw new Error('Failed to update monitoring')
+        const updatedAsset: Asset = await response.json()
+        onUpdateAsset(updatedAsset)
+      } catch (error) {
+        console.error('Error updating asset monitoring:', error)
+        setShowNotification({ type: 'warning', message: 'Could not update monitoring settings.' })
+        setTimeout(() => setShowNotification(null), 2000)
+        return
+      }
       setShowNotification({
         type: 'info',
         message: frequency ? `Monitoring set to ${frequency}` : 'Monitoring disabled',
@@ -87,22 +104,43 @@ export function AssetsSection({ assets, onAddAsset, onRemoveAsset, onUpdateAsset
     }
   }
 
-  const handleCheckNow = (assetId: string) => {
+  const handleCheckNow = async (assetId: string) => {
     const asset = assets.find(a => a.id === assetId)
     if (asset) {
-      onUpdateAsset({
-        ...asset,
-        status: 'checking',
-      })
+      try {
+        const response = await fetch(`${apiBase}/api/assets/${assetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'checking' }),
+        })
+        if (!response.ok) throw new Error('Failed to start check')
+        const updatedAsset: Asset = await response.json()
+        onUpdateAsset(updatedAsset)
+      } catch (error) {
+        console.error('Error starting check:', error)
+        setShowNotification({ type: 'warning', message: 'Could not start check.' })
+        setTimeout(() => setShowNotification(null), 2000)
+        return
+      }
       // Simulate checking
       setTimeout(() => {
-        onUpdateAsset({
-          ...asset,
-          status: 'idle',
-          lastChecked: new Date().toISOString(),
+        const lastChecked = new Date().toISOString()
+        fetch(`${apiBase}/api/assets/${assetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'idle', lastChecked }),
         })
-        setShowNotification({ type: 'success', message: 'Asset check completed' })
-        setTimeout(() => setShowNotification(null), 2000)
+          .then(res => (res.ok ? res.json() : Promise.reject()))
+          .then((updatedAsset: Asset) => {
+            onUpdateAsset(updatedAsset)
+            setShowNotification({ type: 'success', message: 'Asset check completed' })
+            setTimeout(() => setShowNotification(null), 2000)
+          })
+          .catch((error) => {
+            console.error('Error completing check:', error)
+            setShowNotification({ type: 'warning', message: 'Check finished but failed to update status.' })
+            setTimeout(() => setShowNotification(null), 2000)
+          })
       }, 2000)
     }
   }
@@ -344,10 +382,19 @@ export function AssetsSection({ assets, onAddAsset, onRemoveAsset, onUpdateAsset
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
-                      onRemoveAsset(selectedAsset.id)
-                      setSelectedAsset(null)
-                      setShowNotification({ type: 'success', message: 'Asset removed' })
-                      setTimeout(() => setShowNotification(null), 2000)
+                      fetch(`${apiBase}/api/assets/${selectedAsset.id}`, { method: 'DELETE' })
+                        .then(res => (res.ok ? res.json() : Promise.reject()))
+                        .then(() => {
+                          onRemoveAsset(selectedAsset.id)
+                          setSelectedAsset(null)
+                          setShowNotification({ type: 'success', message: 'Asset removed' })
+                          setTimeout(() => setShowNotification(null), 2000)
+                        })
+                        .catch((error) => {
+                          console.error('Error removing asset:', error)
+                          setShowNotification({ type: 'warning', message: 'Could not remove asset.' })
+                          setTimeout(() => setShowNotification(null), 2000)
+                        })
                     }}
                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-semibold text-sm transition-colors"
                     style={{ backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444' }}
