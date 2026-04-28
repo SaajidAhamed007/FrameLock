@@ -28,12 +28,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = int(os.getenv("DB_PORT", "5432"))
-DB_NAME = os.getenv("DB_NAME", "sports_media")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASS = os.getenv("DB_PASS", "2121")
+from dotenv import load_dotenv
+load_dotenv()
 
+def get_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing env variable: {name}")
+    return value
+
+DB_HOST = get_env("DB_HOST")
+DB_PORT = int(get_env("DB_PORT"))
+DB_NAME = get_env("DB_NAME")
+DB_USER = get_env("DB_USER")
+DB_PASS = get_env("DB_PASS")
 _db_pool: Optional[pool.SimpleConnectionPool] = None
 
 
@@ -143,7 +151,7 @@ def create_job(job_id: str, status: str, progress: Dict[str, Any]) -> Dict[str, 
             VALUES (%s, %s, %s)
             RETURNING *
             """,
-            (uuid.UUID(job_id), status, Json(progress)),
+            (job_id, status, Json(progress)),
         )
         return serialize_job(cursor.fetchone())
 
@@ -179,7 +187,7 @@ def update_job(
         return get_job(job_id)
 
     fields.append("updated_at = NOW()")
-    values.append(uuid.UUID(job_id))
+    values.append(job_id)
 
     with db_cursor() as cursor:
         cursor.execute(
@@ -195,7 +203,7 @@ def get_job(job_id: str) -> Optional[Dict[str, Any]]:
     if not parsed_id:
         return None
     with db_cursor() as cursor:
-        cursor.execute("SELECT * FROM jobs WHERE id = %s", (parsed_id,))
+        cursor.execute("SELECT * FROM jobs WHERE id = %s", (str(parsed_id),))
         row = cursor.fetchone()
         return serialize_job(row) if row else None
 
@@ -212,7 +220,7 @@ def get_asset_db(asset_id: str) -> Optional[Dict[str, Any]]:
     if not parsed_id:
         return None
     with db_cursor() as cursor:
-        cursor.execute("SELECT * FROM assets WHERE id = %s", (parsed_id,))
+        cursor.execute("SELECT * FROM assets WHERE id = %s", (str(parsed_id),))
         row = cursor.fetchone()
         return serialize_asset(row) if row else None
 
@@ -226,7 +234,7 @@ def create_asset_db(url: str, title: str) -> Dict[str, Any]:
             VALUES (%s, %s, %s)
             RETURNING *
             """,
-            (asset_id, url, title),
+            (str(asset_id), url, title),
         )
         return serialize_asset(cursor.fetchone())
 
@@ -251,7 +259,7 @@ def update_asset_db(asset_id: str, updates: Dict[str, Any]) -> Optional[Dict[str
     parsed_id = parse_uuid(asset_id)
     if not parsed_id:
         return None
-    values.append(parsed_id)
+    values.append(str(parsed_id))
 
     with db_cursor() as cursor:
         cursor.execute(
@@ -267,7 +275,7 @@ def delete_asset_db(asset_id: str) -> Optional[Dict[str, Any]]:
     if not parsed_id:
         return None
     with db_cursor() as cursor:
-        cursor.execute("DELETE FROM assets WHERE id = %s RETURNING *", (parsed_id,))
+        cursor.execute("DELETE FROM assets WHERE id = %s RETURNING *", (str(parsed_id),))
         row = cursor.fetchone()
         return serialize_asset(row) if row else None
 
